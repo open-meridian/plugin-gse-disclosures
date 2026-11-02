@@ -210,3 +210,16 @@ def test_a_record_is_identified_by_its_terms_or_its_identifier() -> None:
     floater = identify(held[FREDDIE_CLASS])
     assert floater is not None and floater.floating and floater.named == "5XXX05:EF"
     assert Decimal("0") == Decimal(0)
+
+
+async def test_checks_again_send_nothing_new(tmp_path: Path) -> None:
+    lake = recorder()
+    work = feed(lake, tmp_path)
+    lake.answer("ObservationsWanted", lambda _: want("w-1", [FANNIE_POOL]).message)
+    await lake.hear(work, "ObservationsWanted")
+    await work.check()
+    before = {k: v[0] for k, v in lake._answers["RecordFactors"].versions.items()}  # type: ignore[attr-defined]
+    await work.check()
+    await work.check()
+    after = {k: v[0] for k, v in lake._answers["RecordFactors"].versions.items()}  # type: ignore[attr-defined]
+    assert after == before

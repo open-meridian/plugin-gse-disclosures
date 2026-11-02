@@ -113,7 +113,14 @@ class Lake:
     def __call__(self, params: Any) -> ops.RecordFactorsResult:
         recorded = restated = unchanged = 0
         for row in params.factors:
-            value = (as_decimal(row.factor), row.payment_date)
+            # As the lake compares them: a row's values, its raw record and
+            # business date among them.
+            value = (
+                as_decimal(row.factor),
+                row.payment_date,
+                row.meta.raw.key,
+                row.meta.business_date,
+            )
             held = self.versions.get(row.meta.row_key)
             if held is None:
                 self.versions[row.meta.row_key] = (1, value)
