@@ -8,7 +8,8 @@ under `agency_pool` (core's e2e-lake step 17 reads the same pool).
 
 1. Started with no files location: Connection says so, and nothing is
    recorded.
-2. Sample data on (a developer's setting, accepted on the harness).
+2. Sample data on (a developer's setting, accepted on the harness), and the
+   payment calendar the harness's US dollar calendar (`E2E_PAYMENT_CALENDAR`).
 3. The reader resolves the pool by its number to the platform's `INS-`
    record, is entitled to `gse-disclosures:fannie_mae`, and asks for its
    factors by payment date: the lake asks the plugin, standing, and the
@@ -39,6 +40,10 @@ COMPONENTS = ".e2e/components.log"
 COMPOSE = ["docker", "compose", "-p", PROJECT, "-f", ".e2e/harness/compose.yaml",
            "-f", ".e2e/harness/plugins.yaml", "-f", "e2e/plugin.yaml"]
 INSTANCE = "gse-disclosures"
+#: The harness's US dollar calendar (the Federal Reserve Banks'), which its
+#: platform stand-in serves under its own ID, in place of production's: the
+#: Makefile's E2E_PAYMENT_CALENDAR, given as the run's argument.
+CALENDAR = sys.argv[1] if len(sys.argv) > 1 else "CAL-01JAE000000000000000USD1"
 DATASET = f"{INSTANCE}:fannie_mae"
 
 
@@ -122,7 +127,7 @@ def run():
          "step 1, nothing recorded with no files location")
 
     # 2. Sample data.
-    runner("settings", "sample_data=true")
+    runner("settings", "sample_data=true", f"payment_calendar={CALENDAR}")
     runner("page", "--level", "admin", "/", "--until", "Sample data", "--seconds", "90")
 
     # 3. The pool resolved, its factors asked for and recorded.
@@ -153,7 +158,8 @@ def run():
     must(seen >= 2, f"step 3, the reader's watermark: {year['watermark']}")
 
     # 4. Republished: the check woken reads the corrected October file.
-    runner("settings", "sample_data=true", "files_url=https://files.invalid/gse-disclosures")
+    runner("settings", "sample_data=true", f"payment_calendar={CALENDAR}",
+           "files_url=https://files.invalid/gse-disclosures")
     again = until(120, lambda: (lambda r: r if months(r)[-1:] == [("202610", "0.83102211", 2)]
                                 else None)(read(asked)),
                   "step 4, October's republication was not read as version 2")

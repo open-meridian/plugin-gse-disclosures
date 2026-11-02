@@ -54,6 +54,10 @@ DECLARATION_REF := $(shell sed -n 's/^declaration *= *"\(.*\)"/\1/p' pyproject.t
 DECLARE := docker run --rm --network none --entrypoint meridian-declaration
 PLUGINS := [{"instance": "gse-disclosures", "image": "$(IMAGE)", "roles": ["data", "reference"], "declaration": "declaration.json"}, {"instance": "reader", "image": "$(IMAGE)", "roles": ["reporting"], "declaration": "reader.json"}]
 
+# The harness's US dollar calendar (the Federal Reserve Banks'), its platform
+# stand-in's ID for it, given to the plugin's payment_calendar setting.
+E2E_PAYMENT_CALENDAR ?= CAL-01JAE000000000000000USD1
+
 # The kit's built files, where `make preview SHOTS=...` serves them beside
 # the pages for the browser: a meridian-ui checkout's dist/.
 KIT_DIST    ?= ../meridian-ui/dist
@@ -163,7 +167,8 @@ e2e: image
 	@# The harness's copy is removed however the run ends: `meridian plugin
 	@# check` reads every source file under this directory.
 	@trap 'rm -rf .e2e/harness' EXIT; \
-		MERIDIAN_RUNTIME_IMAGE=$(RUNTIME_IMAGE) E2E_DIR="$(CURDIR)/e2e" python3 e2e/run.py
+		MERIDIAN_RUNTIME_IMAGE=$(RUNTIME_IMAGE) E2E_DIR="$(CURDIR)/e2e" \
+		python3 e2e/run.py $(E2E_PAYMENT_CALENDAR)
 
 preview:
 	@$(DOCKER) build $(SDK_CONTEXT) -f Dockerfile.check --target test -t $(CHECK) . >/dev/null 2>&1 \

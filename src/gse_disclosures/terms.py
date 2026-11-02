@@ -33,7 +33,7 @@ import meridian
 from meridian import edge
 from meridian.roles import reference
 
-from . import days
+from . import agency, days
 from .layouts import ClassRow, PoolRow
 from .library import Found
 
@@ -118,98 +118,39 @@ def class_terms(
 
 
 class Terms(reference.Role):
-    """The reference role's class (open-meridian 0.35)."""
+    """The reference role's class (open-meridian 0.35): what a row states,
+    offered through `agency.Offers`."""
 
     def __init__(self) -> None:
-        #: What was offered: (record, file content) pairs.
-        self.offered: set[tuple[str, str]] = set()
-        #: Each template's field paths, by (template, version).
-        self.paths: dict[tuple[str, str], frozenset[str]] = {}
-        self.offers = 0
-        self.refused = ""
-
-    async def template_paths(self, template_id: str, version: str) -> frozenset[str]:
-        """A template's field paths, read once (ReadTemplate)."""
-        held = self.paths.get((template_id, version))
-        if held is None:
-            read = await self.read_template(template_id=template_id, template_version=version)
-            held = frozenset(f.path for f in read.template.fields)
-            self.paths[(template_id, version)] = held
-        return held
+        self.offers = agency.Offers()
 
     async def offer(self, security: Any, found: Found, as_of_ns: int = 0) -> bool:
         """Offer what a row states to the security's record, once for each
-        file content; whether an offer was made. The record is read first
-        (ResolveInstrument), for its template and version, and a pool's
-        number confirmed to resolve to it (ResolveIdentifier, read-only)."""
-        done = (security.subject, found.kept.key)
-        if done in self.offered:
-            return False
-        self.offered.add(done)
+        file content; whether an offer was made. A pool's number is
+        confirmed to resolve to the record first."""
         row = found.row
-        try:
-            read = await self.resolve_instrument(instrument_id=security.subject, as_of_ns=as_of_ns)
-            if not read.found:
-                return False
-            if isinstance(row, PoolRow) and await self.confirm(security, as_of_ns) not in (
-                "",
+        ref = self.plugin.raw_record(f"{found.kept.key}#{row.line}")
+
+        def reported(path: str) -> Any:
+            return edge.reported(path, ref)
+
+        gse = security.agency.mortgage_agency
+        if isinstance(row, PoolRow):
+            return await self.offers.offer(
+                self,
                 security.subject,
-            ):
-                # The pool's number names another record: not this one's terms.
-                return False
-            record = read.instrument
-            template = record.template_id or (
-                POOL_TEMPLATE if isinstance(row, PoolRow) else CLASS_TEMPLATE
+                found.kept.key,
+                template=POOL_TEMPLATE,
+                values=lambda: pool_terms(row, gse, reported),
+                pool=(security.pool, security.agency.code),
+                as_of_ns=as_of_ns,
             )
-            version = record.template_version or "1"
-            ref = self.plugin.raw_record(f"{found.kept.key}#{row.line}")
-
-            def reported(path: str) -> Any:
-                return edge.reported(path, ref)
-
-            agency = security.agency.mortgage_agency
-            offered = (
-                pool_terms(row, agency, reported)
-                if isinstance(row, PoolRow)
-                else class_terms(row, agency, found.payment_day, reported)
-            )
-            paths = await self.template_paths(template, version)
-            fields = [v for v in offered if v.path in paths]
-            if not fields:
-                return False
-            await self.offer_template_fields(
-                instrument_id=security.subject,
-                template_id=template,
-                template_version=version,
-                fields=fields,
-            )
-        except meridian.MeridianError as refused:
-            # An offer refused -- a template not held, a value not of its
-            # field's type -- is said, and the factor stands.
-            self.refused = str(refused)
-            log.warning("terms of %s not offered: %s", security.subject, refused)
-            return False
-        self.offers += 1
-        log.info(
-            "terms of %s offered to %s %s: %s",
+        assert isinstance(row, ClassRow)
+        return await self.offers.offer(
+            self,
             security.subject,
-            template,
-            version,
-            ", ".join(v.path for v in fields),
-        )
-        return True
-
-    async def confirm(self, security: Any, as_of_ns: int) -> str:
-        """The record a pool's number resolves to, read-only: the security
-        this plugin reconciles, found by its open identifier."""
-        if not security.pool:
-            return str(security.subject)
-        found = await self.resolve_identifier(
-            identifiers=[
-                meridian.Identifier(
-                    scheme="agency_pool", value=security.pool, source=security.agency.code
-                )
-            ],
+            found.kept.key,
+            template=CLASS_TEMPLATE,
+            values=lambda: class_terms(row, gse, found.payment_day, reported),
             as_of_ns=as_of_ns,
         )
-        return str(found.instrument_id) if found.found else ""

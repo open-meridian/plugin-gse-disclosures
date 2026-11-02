@@ -13,7 +13,8 @@ from meridian.plugin.v1 import operations_pb2 as ops
 from meridian.suites import Recorder
 
 from gse_disclosures import days
-from gse_disclosures.feed import identify, latest_effective
+from gse_disclosures.agency import Days
+from gse_disclosures.feed import Disclosures, identify, latest_effective
 from gse_disclosures.terms import Terms
 
 from conftest import (
@@ -27,6 +28,7 @@ from conftest import (
     answering,
     factors,
     feed,
+    library,
     records,
     want,
 )
@@ -180,19 +182,48 @@ async def test_terms_offered_to_the_pools_record(tmp_path: Path) -> None:
     assert len(lake.on("OfferTemplateFields")) == 3  # the republished file, once
 
 
-def test_the_dates_of_a_factor() -> None:
+async def test_the_dates_of_a_factor_by_the_calendar() -> None:
+    lake = recorder()
+    calendar = Days(lake.bind(Disclosures(library(Path("/nonexistent")))), "CAL-USD")
     assert days.factor_month("202611") == "202610"
     assert days.record_date("202610") == date(2026, 10, 31)
-    assert days.payment_date("202610", 55) == date(2026, 11, 25)
-    assert days.payment_date("202610", 45) == date(2026, 11, 16)  # the 15th, a Sunday
-    assert days.payment_date("202610", 75) == date(2026, 12, 15)
-    assert days.payment_date("202610", 30) is None
-    assert days.published("202609") == date(2026, 10, 6)
-    assert days.published("202610") == date(2026, 11, 5)
-    assert date(2026, 11, 26) in days.holidays(2026)  # Thanksgiving
-    assert date(2026, 7, 3) not in days.holidays(2026)  # a Saturday's is not moved
-    assert latest_effective(date(2026, 11, 4)) == "202610"
-    assert latest_effective(date(2026, 11, 5)) == "202611"
+    assert await days.payment_date("202610", 55, calendar) == date(2026, 11, 25)
+    assert await days.payment_date("202610", 45, calendar) == date(2026, 11, 16)  # 15th a Sunday
+    assert await days.payment_date("202610", 75, calendar) == date(2026, 12, 15)
+    assert await days.payment_date("202610", 30, calendar) is None
+    assert await days.published("202609", calendar) == date(2026, 10, 6)
+    assert await days.published("202610", calendar) == date(2026, 11, 5)
+    # Thanksgiving, a holiday the calendar names, then the Friday after.
+    assert await calendar.on_or_after(date(2026, 11, 26)) == date(2026, 11, 27)
+    assert await latest_effective(date(2026, 11, 4), calendar) == "202610"
+    assert await latest_effective(date(2026, 11, 5), calendar) == "202611"
+    assert {p.calendar_id for p in lake.on("ReadCalendar")} == {"CAL-USD"}
+
+
+async def test_a_record_names_its_own_payment_calendar(tmp_path: Path) -> None:
+    lake = recorder()
+    work = feed(lake, tmp_path)
+    assert await work.calendar.on_or_after(date(2026, 11, 26), "CAL-POOL") == date(2026, 11, 27)
+    assert [p.calendar_id for p in lake.on("ReadCalendar")] == ["CAL-POOL"]
+
+
+async def test_dates_unset_where_the_calendar_does_not_answer(tmp_path: Path) -> None:
+    lake = recorder()
+    lake.answer("ReadCalendar", lambda _: ops.ReadCalendarResult(found=False))
+    work = feed(lake, tmp_path)
+    lake.answer("ObservationsWanted", lambda _: want("w-1", [FANNIE_POOL]).message)
+    await lake.hear(work, "ObservationsWanted")
+    rows = factors(lake)
+    assert [r.factor_month for r in rows] == ["202609"]  # last month's, the calendar silent
+    assert not rows[0].payment_date and not rows[0].meta.business_date
+    assert rows[0].record_date == "2026-09-30" and not rows[0].meta.source_times
+    assert "is not held" in work.calendar.error
+
+
+async def test_outside_the_calendars_coverage_is_not_known(tmp_path: Path) -> None:
+    lake = recorder()
+    work = feed(lake, tmp_path)
+    assert await work.calendar.on_or_after(date(2024, 12, 25)) is None
 
 
 def test_a_record_is_identified_by_its_terms_or_its_identifier() -> None:

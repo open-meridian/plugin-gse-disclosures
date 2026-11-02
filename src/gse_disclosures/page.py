@@ -47,7 +47,7 @@ def connection_read(feed: Any) -> data.ConnectionRead:
         limit="2 requests a second, at most",
         calls=source.calls,
         last_call_at=feed.last_check.isoformat(timespec="seconds") if feed.last_check else "",
-        last_error=feed.error or source.failed,
+        last_error=feed.error or source.failed or feed.calendar.error,
         sessions=None,
     )
 

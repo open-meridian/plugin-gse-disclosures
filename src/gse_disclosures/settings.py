@@ -9,6 +9,10 @@ for one, its token; then the role's sample data, a developer's setting.
   site and Freddie Mac's secured data site, under the terms it accepted
   there, served over HTTPS under the agencies' own file names (files.py).
 - `files_token`: a bearer token the location asks for, secret, never shown.
+- `payment_calendar`: the calendar a payment date and a publication day are
+  rolled by where the record names none -- the platform's US dollar
+  calendar, the Federal Reserve Banks' business days, by default
+  (`agency.USD_CALENDAR`); a deployment's own copy by its CAL- ID.
 - `sample_data`: the files committed with the plugin, in place of the
   location (files.py's `Samples`).
 
@@ -23,6 +27,8 @@ from dataclasses import dataclass
 from typing import Any
 
 import meridian
+
+from .agency import USD_CALENDAR
 
 
 @meridian.settings
@@ -45,6 +51,17 @@ class Declared:
         roles=["data"],
         description="A bearer token the files location asks for; empty where it asks none.",
     )
+    payment_calendar: str = meridian.setting(
+        "Payment calendar",
+        default=USD_CALENDAR,
+        roles=["data"],
+        description=(
+            "The deployment's calendar a factor's payment date and publication are rolled by "
+            "when the pool's record names no payment calendar: by default the platform's US "
+            "dollar calendar, the Federal Reserve Banks' business days, on which the agencies "
+            "pay. Name a deployment's own copy by its CAL- ID."
+        ),
+    )
     sample_data: bool = meridian.sample_data(
         roles=["data"],
         description=(
@@ -59,6 +76,7 @@ class Declared:
 class Config:
     files_url: str = ""
     files_token: str = ""
+    payment_calendar: str = USD_CALENDAR
     sample_data: bool = False
 
 
@@ -67,8 +85,10 @@ def config_from(delivered: Any) -> Config:
     values = getattr(delivered, "values", delivered) or {}
     url = values.get("files_url")
     token = values.get("files_token")
+    calendar = values.get("payment_calendar")
     return Config(
         files_url=url if isinstance(url, str) else "",
         files_token=token if isinstance(token, str) else "",
+        payment_calendar=calendar if isinstance(calendar, str) and calendar else USD_CALENDAR,
         sample_data=values.get("sample_data") is True,
     )

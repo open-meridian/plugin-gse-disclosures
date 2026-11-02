@@ -17,6 +17,7 @@ from meridian.suites import Recorder
 from gse_disclosures.feed import Disclosures
 from gse_disclosures.files import Samples, Source, Store
 from gse_disclosures.library import Library
+from gse_disclosures.preview import calendar_answer
 from gse_disclosures.terms import Terms
 
 INSTANCE = "gse-disclosures-1"
@@ -172,6 +173,7 @@ def answering(recorder: Recorder, ambiguous: bool = False) -> Recorder:
     recorder.answer("ResolveIdentifier", resolve)
     recorder.answer("ReadTemplate", template)
     recorder.answer("RecordFactors", Lake())
+    recorder.answer("ReadCalendar", calendar_answer)
     return recorder
 
 

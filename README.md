@@ -15,8 +15,10 @@ Each row is a `Factor` (contract v29) under the pool's or class's record,
 keyed by the agency, the pool (or deal and class) and the factor month --
 `FNMA:MA5123:202610` -- the factor exactly as published, its factor month
 (the month whose payments it reflects, the month before the agencies' factor
-date), record date and payment date; a pool's WAC, WAM and WALA; a floating
-class's period coupon. A corrected file's factor is the row's next version.
+date), record date and payment date -- rolled to a business day by the
+deployment's calendar, the record's payment calendar or else the platform's
+US dollar calendar, and unset where it does not answer --; a pool's WAC, WAM
+and WALA; a floating class's period coupon. A corrected file's factor is the row's next version.
 Factors are recorded only for the records the deployment names (ruling
 749), when a reader asks for them, and kept current daily.
 

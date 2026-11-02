@@ -17,6 +17,9 @@
 
 1. Open the plugin's **Settings**: enter **Files location** (the folder's
    HTTPS address) and, if it asks for one, **Files location token**.
+   **Payment calendar** is the platform's US dollar calendar (the Federal
+   Reserve Banks' business days) unless you name your own copy; a pool's
+   record naming its own payment calendar goes first.
 2. On the dashboard's **Data sources** page, license `fannie_mae` and
    `freddie_mac` and entitle the plugins that read factors.
 3. Check its **Summary**: Connection reads Answering once the location

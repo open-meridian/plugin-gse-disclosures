@@ -20,8 +20,11 @@ a pool or class no file names, source silent.
 `INS-` (or `LCL-`) ID, its row key the agency's code, the pool or the deal
 and class, and the factor month (`FNMA:MA5123:202610`, as the contract's
 fixtures key it), the factor exactly as published, its factor month, record
-date and payment date (days.py), its business date and published time the
-files' publication (the fourth business day, 4:30 p.m. Eastern); a pool's
+date and payment date (days.py; the payment date and publication by the
+deployment's calendar -- the record's payment calendar, else the US
+dollar's -- and unset where it does not answer, never guessed), its
+business date and published time the files' publication (the fourth
+business day, 4:30 p.m. Eastern); a pool's
 WAC, WAM and WALA as the security-level file states them (S-19, S-23,
 S-24); a floating or inverse floating class's period coupon (RF-08). Its raw
 record is the file it was read from, at the row's line. A factor published
@@ -35,7 +38,7 @@ from __future__ import annotations
 
 import dataclasses
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, time
 from typing import Any
@@ -46,7 +49,7 @@ from meridian.helpers import debt
 from meridian.plugin.v1 import operations_pb2 as ops
 from meridian.roles import Latency, data
 
-from . import days
+from . import agency, days
 from .agencies import AGENCIES, BY_CODE, BY_ENUM, BY_KEY, Agency
 from .layouts import ClassRow, PoolRow
 from .library import Found, Library
@@ -83,6 +86,7 @@ class Security:
     delay_days: int = 0
     payment_day: int = 0
     record_rule: int = 0
+    calendar: str = ""
     floating: bool = False
     record: ops.InstrumentRecord | None = None
 
@@ -111,7 +115,8 @@ def identify(record: ops.InstrumentRecord) -> Security | None:
             return None
         return Security(
             subject, agency, pool=pool, delay_days=terms.payment_delay_days,
-            payment_day=terms.payment_day, record_rule=terms.record_date_rule, record=record,
+            payment_day=terms.payment_day, record_rule=terms.record_date_rule,
+            calendar=terms.payment_calendar_id, record=record,
         )  # fmt: skip
     if record.instrument_type == ops.INSTRUMENT_TYPE_CMO_TRANCHE or record.HasField("cmo_tranche"):
         terms = record.cmo_tranche
@@ -127,11 +132,13 @@ def identify(record: ops.InstrumentRecord) -> Security | None:
     return None
 
 
-def latest_effective(today: date) -> str:
+async def latest_effective(today: date, calendar: agency.Days) -> str:
     """The latest month whose factors are published by `today`: this
-    month's once its fourth business day has come, else last month's."""
+    month's once its fourth business day has come, else last month's (and
+    last month's where the calendar does not say)."""
     this = f"{today.year:04d}{today.month:02d}"
-    if today >= days.nth_business_day(today.year, today.month, days.PUBLICATION_DAY):
+    fourth = await calendar.nth_business_day(today.year, today.month, days.PUBLICATION_DAY)
+    if fourth is not None and today >= fourth:
         return this
     return days.add_months(this, -1)
 
@@ -146,6 +153,7 @@ class Disclosures(data.Role):
         library: Library,
         now: Callable[[], datetime] = utc_now,
         terms: Any = None,
+        payment_calendar: str = agency.USD_CALENDAR,
     ) -> None:
         self.library = library
         self.now = now
@@ -157,13 +165,16 @@ class Disclosures(data.Role):
         # time, reported every 10 seconds.
         self.latency = Latency(self, clock_ns=lambda: _ns(self.now()))
         self.wants.latency = self.latency
+        #: The deployment's business days: a record's payment calendar, else
+        #: the setting's (the US dollar's, the Federal Reserve Banks').
+        self.calendar = agency.Days(self, payment_calendar)
         #: The pools and classes standing wants name, by subject.
         self.held: dict[str, Security] = {}
         self.last_check: datetime | None = None
         self.error = ""
 
-    def dataset(self, agency: Agency) -> str:
-        return self.wants.dataset(agency.key)
+    def dataset(self, gse: Agency) -> str:
+        return self.wants.dataset(gse.key)
 
     def today(self) -> date:
         """New York's day: the samples' own with sample data, else now."""
@@ -171,76 +182,57 @@ class Disclosures(data.Role):
         moment = fixed() if callable(fixed) else self.now()
         return moment.astimezone(NEW_YORK).date()
 
-    # ── Resolving ───────────────────────────────────────────────────────
-
-    async def security(self, subject: str, as_of_ns: int) -> Security | None:
-        """The pool or class a subject is, read from its record; None where
-        the deployment holds no such record or it is no GSE's pool or class."""
-        found = await self.resolve_instrument(instrument_id=subject, as_of_ns=as_of_ns)
-        if not found.found:
-            return None
-        return identify(found.instrument)
-
     async def confirmed(self, security: Security, as_of_ns: int) -> bool:
-        """Whether a pool's number resolves to its record alone: one meeting
-        two records is reported ambiguous, and nothing is recorded for it."""
+        """Whether a pool's number may be recorded against (`agency.confirmed`);
+        a class has none to confirm."""
         if not security.is_pool:
             return True
-        named = [
-            meridian.Identifier(
-                scheme="agency_pool", value=security.pool, source=security.agency.code
-            )
-        ]
-        found = await self.resolve_identifier(identifiers=named, as_of_ns=as_of_ns)
-        if found.found and found.instrument_id == security.subject:
-            return True
-        if not found.found and found.miss_reason == ops.MISS_REASON_AMBIGUOUS:
-            await self.report_missing_instrument(
-                source=security.agency.code,
-                identifiers=named,
-                as_of_ns=as_of_ns,
-                reason=ops.MISS_REASON_AMBIGUOUS,
-            )
-            return False
-        # Matched elsewhere or not matched by the number alone: the record the
-        # want names is the subject, as it states the pool.
-        return True
+        return await agency.confirmed(self, security.pool, security.agency.code, as_of_ns)
 
     # ── Rows ────────────────────────────────────────────────────────────
 
-    def factor(self, security: Security, found: Found) -> meridian.Factor:
-        """One row found, as the lake's `Factor`."""
+    async def factor(self, security: Security, found: Found) -> meridian.Factor:
+        """One row found, as the lake's `Factor`: its payment date and
+        publication by the calendar, unset where it does not answer."""
         row = found.row
-        agency = security.agency
+        gse = security.agency
         if isinstance(row, PoolRow):
             month = days.factor_month(row.effective)
             delay = row.delay_days or security.delay_days
-            paid = days.payment_date(month, delay) if delay else None
-            if paid is not None and security.payment_day:
-                paid = days.on_or_after(paid.replace(day=security.payment_day))
+            paid = (
+                await days.payment_date(
+                    month, delay, self.calendar, security.calendar, security.payment_day
+                )
+                if delay
+                else None
+            )
             record: date | None = days.record_date(month)
-            key = f"{agency.code}:{row.pool}:{month}"
+            key = f"{gse.code}:{row.pool}:{month}"
             coupon = None
         else:
             assert isinstance(row, ClassRow)
             month = days.factor_month(row.distribution)
             year, number = days.month_of(row.distribution)
             day = security.payment_day or found.payment_day
-            paid = days.on_or_after(date(year, number, day)) if day else None
+            paid = (
+                await self.calendar.on_or_after(date(year, number, day), security.calendar)
+                if day
+                else None
+            )
             record = (
                 days.record_date(month)
                 if security.record_rule == ops.RECORD_DATE_RULE_LAST_DAY_OF_PRIOR_MONTH
                 else None
             )
-            key = f"{agency.code}:{row.trust}:{row.class_name}:{month}"
+            key = f"{gse.code}:{row.trust}:{row.class_name}:{month}"
             coupon = row.interest_rate if security.floating else None
-        on = days.published(month)
+        on = await days.published(month, self.calendar)
         made = debt.factor(
             security.subject,
             row.factor,
             month,
-            dataset=self.dataset(agency),
-            published=on,
+            dataset=self.dataset(gse),
+            published=on or "",
             record_date=record.isoformat() if record else "",
             payment_date=paid.isoformat() if paid else "",
             coupon_rate=coupon,
@@ -249,13 +241,17 @@ class Disclosures(data.Role):
             wala=row.wala if isinstance(row, PoolRow) else None,
             raw=self.plugin.raw_record(f"{found.kept.key}#{row.line}"),
         )
-        at = datetime.combine(on, PUBLISHED_AT, NEW_YORK)
         assert made.meta is not None
-        meta = dataclasses.replace(
-            made.meta,
-            row_key=key,
-            source_times=[meridian.SourceTime(kind="published", at_ns=_ns(at))],
+        times = (
+            [
+                meridian.SourceTime(
+                    kind="published", at_ns=_ns(datetime.combine(on, PUBLISHED_AT, NEW_YORK))
+                )
+            ]
+            if on is not None
+            else []
         )
+        meta = dataclasses.replace(made.meta, row_key=key, source_times=times)
         return dataclasses.replace(made, meta=meta)
 
     async def rows(
@@ -263,14 +259,14 @@ class Disclosures(data.Role):
     ) -> list[tuple[Security, Found]]:
         """Each security's rows over the months named, oldest month first."""
         out: list[tuple[Security, Found]] = []
-        for agency in AGENCIES:
-            mine = [s for s in securities if s.agency.key == agency.key]
+        for gse in AGENCIES:
+            mine = [s for s in securities if s.agency.key == gse.key]
             pools = [s for s in mine if s.is_pool]
             classes = [s for s in mine if not s.is_pool]
             if not mine:
                 continue
             for effective in months:
-                month = await self.library.read(agency, effective, again=again)
+                month = await self.library.read(gse, effective, self.calendar, again=again)
                 if pools:
                     found = self.library.pools(month, [s.pool for s in pools])
                     out += [(s, found[s.pool.upper()]) for s in pools if s.pool.upper() in found]
@@ -283,22 +279,22 @@ class Disclosures(data.Role):
                     ]
         return out
 
-    async def record(self, found: list[tuple[Security, Found]], want_id: str = "") -> int:
+    async def record(self, found: Sequence[tuple[Any, ...]], want_id: str = "") -> int:
         """The rows found, recorded to each agency's dataset; their terms
         offered."""
         sent = 0
-        for agency in AGENCIES:
-            factors = [self.factor(s, f) for s, f in found if s.agency.key == agency.key]
+        for gse in AGENCIES:
+            factors = [await self.factor(s, f) for s, f in found if s.agency.key == gse.key]
             if factors:
-                sent += await self.wants.record("factors", factors, agency.key, want_id)
+                sent += await self.wants.record("factors", factors, gse.key, want_id)
         if self.terms is not None:
             for security, row in found:
                 await self.terms.offer(security, row)
         return sent
 
-    def months(self) -> list[str]:
+    async def months(self) -> list[str]:
         """The months a want is answered with, oldest first."""
-        latest = latest_effective(self.today())
+        latest = await latest_effective(self.today(), self.calendar)
         return [days.add_months(latest, -n) for n in range(HISTORY_MONTHS - 1, -1, -1)]
 
     # ── Wants ───────────────────────────────────────────────────────────
@@ -317,52 +313,32 @@ class Disclosures(data.Role):
         subjects: list[str],
         kinds: tuple[int, ...],
     ) -> dict[str, str]:
-        """One want answered from the agency's files: each factor recorded
-        against it, and each subject declined with why."""
-        agency = BY_KEY.get(key)
-        if agency is None or want.data_type != FACTOR:
+        """One want answered from the agency's files (`agency.answer`)."""
+        gse = BY_KEY.get(key)
+        if gse is None or want.data_type != FACTOR:
             return dict.fromkeys(subjects, "not_covered")
-        as_of = _ns(self.now())
-        declined: dict[str, str] = {}
-        securities: list[Security] = []
-        for subject in subjects:
-            security = await self.security(subject, as_of)
-            if (
-                security is None
-                or security.agency.key != agency.key
-                or not await self.confirmed(security, as_of)
-            ):
-                declined[subject] = "not_covered"
-            else:
-                securities.append(security)
-        found = await self.rows(securities, self.months())
-        named = {s.subject for s, _ in found}
-        for security in securities:
-            if security.subject not in named:
-                declined[security.subject] = "source_silent"
-        await self.record(found, want.want_id)
-        kept = [s for s in securities if s.subject in named]
-        log.info(
-            "want %s: %d of %d subjects found, %d factors, declined %s",
-            want.want_id,
-            len(kept),
-            len(subjects),
-            len(found),
-            declined or "none",
+
+        def mine(record: ops.InstrumentRecord) -> Security | None:
+            security = identify(record)
+            return security if security is not None and security.agency.key == gse.key else None
+
+        return await agency.answer(
+            self,
+            want,
+            subjects,
+            kinds,
+            identify=mine,
+            confirm=self.confirmed,
+            rows=self.rows,
+            record=self.record,
+            months=await self.months(),
+            held=self.held,
+            as_of_ns=_ns(self.now()),
         )
-        if want.standing and kept:
-            for security in kept:
-                self.held[security.subject] = security
-            self.wants.stand(want, [s.subject for s in kept], kinds)
-        return declined
 
     async def on_want_withdrawn(self, heard: meridian.Heard[ops.WantWithdrawnEvent]) -> None:
-        """A standing want no reader renewed: its pools and classes no longer
-        kept current, unless another standing want names them."""
-        self.wants.withdraw(heard.message.want_id)
-        still = {s for w in self.wants.standing.values() for s in w.subjects}
-        for subject in [s for s in self.held if s not in still]:
-            del self.held[subject]
+        """A standing want no reader renewed (`agency.withdrawn`)."""
+        agency.withdrawn(self, heard.message.want_id, self.held)
 
     # ── Keeping current ─────────────────────────────────────────────────
 
@@ -373,7 +349,7 @@ class Disclosures(data.Role):
         self.last_check = self.now()
         if not self.held:
             return 0
-        latest = latest_effective(self.today())
+        latest = await latest_effective(self.today(), self.calendar)
         months = [days.add_months(latest, -1), latest]
         try:
             found = await self.rows(list(self.held.values()), months, again=True)
@@ -384,12 +360,6 @@ class Disclosures(data.Role):
         self.error = ""
         log.info("checked %s and %s: %d factors sent", *months, sent)
         return sent
-
-
-def checked_at(feed: Disclosures) -> str:
-    """When the files were last checked, as Connection says it."""
-    held = feed.last_check
-    return held.astimezone(UTC).isoformat(timespec="seconds") if held else ""
 
 
 __all__ = ["Disclosures", "Security", "identify", "latest_effective"]

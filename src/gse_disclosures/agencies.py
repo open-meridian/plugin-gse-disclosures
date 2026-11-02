@@ -26,6 +26,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from . import days
+from .agency import Days
 
 
 @dataclass(frozen=True)
@@ -48,13 +49,15 @@ class Agency:
     issuer: str
     mortgage_agency: str
 
-    def pool_files(self, effective: str) -> list[str]:
-        """The security-level files stating the factors in effect from a month."""
+    async def pool_files(self, effective: str, calendar: Days) -> list[str]:
+        """The security-level files stating the factors in effect from a month:
+        Freddie Mac's named for its publication day, the fourth business day
+        by the calendar -- none where the calendar does not answer."""
         if self.key == FANNIE_MAE.key:
             return [f"FNM_MF_{effective}"]
         year, month = days.month_of(effective)
-        on = days.nth_business_day(year, month, days.PUBLICATION_DAY)
-        return [f"fd{on:%y%m%d}"]
+        on = await calendar.nth_business_day(year, month, days.PUBLICATION_DAY)
+        return [f"fd{on:%y%m%d}"] if on is not None else []
 
     def class_files(self, effective: str) -> list[ClassFile]:
         """The REMIC factor files stating the class factors of a month's

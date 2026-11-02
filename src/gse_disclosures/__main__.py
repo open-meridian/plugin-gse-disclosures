@@ -27,6 +27,7 @@ import meridian
 from meridian.edge import storage_root
 from meridian.roles import data
 
+from .agency import Days
 from .declaration import CATALOGUE, DECLARATION, PORT
 from .feed import Disclosures
 from .files import Store, source
@@ -64,6 +65,8 @@ class Running(Disclosures):
         if moved or self.settings is None:
             self.library.source = source(config.sample_data, config.files_url, config.files_token)
             self.library.months.clear()
+        if config.payment_calendar != self.calendar.default:
+            self.calendar = Days(self, config.payment_calendar)
         self.config, self.settings = config, delivered
         self.wake.set()
 
@@ -106,6 +109,10 @@ def figures(feed: Running) -> list[meridian.Figure]:
     elif feed.error or source.failed:
         connection = meridian.Figure(
             "", "Not answering", state="error", why=feed.error or source.failed
+        )
+    elif feed.calendar.error:
+        connection = meridian.Figure(
+            "", "Answering", state="warn", why=f"dates not set: {feed.calendar.error}"
         )
     elif not feed.config.files_url:
         connection = meridian.Figure(

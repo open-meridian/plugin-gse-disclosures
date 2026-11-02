@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from .agencies import Agency
+from .agency import Days
 from .files import Kept, Source, Store
 from .layouts import ClassRow, PoolRow, Unread, class_row, lines, pool_row, same_deal, text_of
 
@@ -61,14 +62,17 @@ class Library:
     #: The files newly kept by the latest read, by name.
     changed: set[str] = field(default_factory=set)
 
-    async def read(self, agency: Agency, effective: str, again: bool = False) -> Month:
+    async def read(
+        self, agency: Agency, effective: str, calendar: Days, again: bool = False
+    ) -> Month:
         """An agency's files of a month: read once, or again (`again`) to
         find a later or corrected publication."""
         held = self.months.get((agency.key, effective))
         if held is not None and not again:
             return held
         month = held or Month(agency, effective)
-        for name in agency.pool_files(effective):
+        names = await agency.pool_files(effective, calendar)
+        for name in names:
             kept = await self._fetch(name)
             if kept is not None:
                 month.pools[name] = kept
@@ -76,7 +80,10 @@ class Library:
             kept = await self._fetch(file.name)
             if kept is not None:
                 month.classes[file.name] = (kept, file.payment_day)
-        self.months[(agency.key, effective)] = month
+        if names:
+            # Kept only once every file is named: a Freddie Mac pool file is
+            # named by the calendar, and is asked again when it answers.
+            self.months[(agency.key, effective)] = month
         return month
 
     async def _fetch(self, name: str) -> Kept | None:

@@ -6,10 +6,11 @@ September's and October's factors); `an-asset-that-does-not-resolve` (a
 pool's number meeting two records, reported ambiguous); `a-subject-declined`
 (a bond asked of a pool's dataset); `a-standing-want-withdrawn`;
 `reads-its-datasets-licences`; `reports-its-feed-delay` (each factor's age
-from its published time, the fourth business day at 4:30 p.m. Eastern); and
-the cases the SDK answers. Every other case is about a kind of data the GSEs'
-files never state, or work the plugin never does, and is not presented, with
-why.
+from its published time, the fourth business day at 4:30 p.m. Eastern);
+`reads-a-calendar` (the deployment's US dollar calendar, by which payment
+dates and publication days are rolled); and the cases the SDK answers.
+Every other case is about a kind of data the GSEs' files never state, or
+work the plugin never does, and is not presented, with why.
 
 **Reference.** Presented: `fills-a-template` (the pool's record read, its
 template read, its terms offered), `licensed-vendor-value-stays` (every value
@@ -18,7 +19,7 @@ deployment), `offers-never-overwrite-a-person` (a person's value stands: the
 plugin offers, never sets), `reads-the-record-it-fills`,
 `resolves-a-security-it-reconciles` (the pool's number resolved read-only),
 and the cases the SDK answers. Not presented: calendars and settlement dates,
-which its work never uses.
+which the reference role's work never uses.
 """
 
 from __future__ import annotations
@@ -66,8 +67,8 @@ WHY = {
     "ratings": "it publishes no ratings",
     "derived series": "it publishes no figure of its own",
     "calendars": (
-        "it dates each factor by the agencies' stated payment delays and the Federal Reserve's "
-        "holidays, which their publication and payment schedules follow; it reads no calendar"
+        "its offers state a payment day of the month, never a date rolled by a calendar; the "
+        "data role reads the calendar"
     ),
     "settlement dates": "it records factors as published; it never computes a settlement date",
 }
@@ -79,6 +80,7 @@ DATA_PRESENTED = {
     "a-standing-want-withdrawn",
     "reads-its-datasets-licences",
     "reports-its-feed-delay",
+    "reads-a-calendar",
 }
 REFERENCE_PRESENTED = {
     "fills-a-template",
@@ -149,6 +151,9 @@ def data_producers(tmp: Path) -> dict[str, Producer]:
         "a-standing-want-withdrawn": withdrawn,
         "reads-its-datasets-licences": licences,
         "reports-its-feed-delay": feed_delay(delayed),
+        # The record's payment calendar, else the US dollar's, read for each
+        # payment date and publication day.
+        "reads-a-calendar": wanted([FANNIE_POOL]),
     }
 
 
