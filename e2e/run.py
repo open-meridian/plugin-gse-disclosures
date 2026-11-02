@@ -106,7 +106,7 @@ def call(tool, arguments=None):
 
 
 def months(said):
-    return [(f["month"], f["factor"], f["version"]) for f in said["factors"]]
+    return sorted((f["month"], f["factor"], f["version"]) for f in said["factors"])
 
 
 def run():
@@ -139,14 +139,15 @@ def run():
                  "step 3, the pool's two factors were not read")
     must(months(year) == [("202609", "0.84017733", 1), ("202610", "0.83102210", 1)],
          f"step 3, September's and October's factors as published: {year}")
-    october = year["factors"][1]
+    by_month = {f["month"]: f for f in year["factors"]}
+    october = by_month["202610"]
     must(october["row_key"] == "FNMA:MA5123:202610" and october["dataset"] == DATASET
          and october["subject"] == pool and october["record_date"] == "2026-10-31"
          and october["payment_date"] == "2026-11-25" and october["business_date"] == "2026-11-05"
          and (october["wac"], october["wam"], october["wala"]) == ("6.512", 331, 27)
          and october["published"] and october["raw"].endswith("#1"),
          f"step 3, October's row as the fixtures key it: {october}")
-    must(year["factors"][0]["payment_date"] == "2026-10-26",
+    must(by_month["202609"]["payment_date"] == "2026-10-26",
          f"step 3, September's paid the next business day after Sunday the 25th: {year}")
     seen = year["watermark"].get(DATASET, 0)
     must(seen >= 2, f"step 3, the reader's watermark: {year['watermark']}")

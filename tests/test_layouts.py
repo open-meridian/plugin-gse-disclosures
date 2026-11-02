@@ -97,3 +97,14 @@ def test_a_deal_named_as_its_agency_writes_it() -> None:
     assert same_deal("2016-045", "2016045")
     assert not same_deal("2016-045", "2016-45")
     assert not same_deal("", "")
+
+
+async def test_a_file_kept_before_a_restart_is_the_same_raw_record(tmp_path: Path) -> None:
+    from gse_disclosures.files import Samples, Store
+
+    fetched = await Samples().get("FNM_MF_202611")
+    assert fetched is not None
+    first, new = Store(tmp_path).keep(fetched)
+    assert new
+    again, new = Store(tmp_path).keep(fetched)
+    assert not new and again.key == first.key and again.path == first.path

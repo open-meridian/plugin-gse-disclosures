@@ -201,13 +201,36 @@ class Store:
         #: The latest content kept of each file, by name.
         self.latest: dict[str, Kept] = {}
 
+    def kept(self, name: str, digest: str) -> Kept | None:
+        """The record of a file's content already in storage -- kept by an
+        earlier process, before a restart -- or None. A row read again from
+        it names the same raw record, so the lake answers it unchanged rather
+        than as its next version."""
+        base = self.root / FILES
+        if not base.is_dir():
+            return None
+        for record in sorted(base.glob("*/file/*.json")):
+            try:
+                held = json.loads(record.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if held.get("name") == name and held.get("sha256") == digest:
+                path = record.with_suffix(".bin")
+                if path.is_file():
+                    return Kept(str(record.relative_to(self.root)), digest, path)
+        return None
+
     def keep(self, fetched: Fetched) -> tuple[Kept, bool]:
-        """Keep a file read, unless its content is the one kept last for its
-        name; what is kept, and whether it is new."""
+        """Keep a file read, unless its content is kept already; what is
+        kept, and whether it is new."""
         digest = hashlib.sha256(fetched.body).hexdigest()
         held = self.latest.get(fetched.name)
         if held is not None and held.digest == digest:
             return held, False
+        found = self.kept(fetched.name, digest)
+        if found is not None:
+            self.latest[fetched.name] = found
+            return found, False
         received_ns = int(fetched.received.timestamp() * 1_000_000) * 1000
         key = self.raw.keep(
             "file",
