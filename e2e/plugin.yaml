@@ -1,0 +1,9 @@
+# The e2e's additions to the harness's plugins (the harness's README, "The
+# plugins"): the reader, a reporting plugin run from this directory in the
+# plugin's own image. Paths are absolute, from E2E_DIR, since a later compose
+# file's relative paths resolve against the first file's directory.
+services:
+  reader:
+    entrypoint: ["python", "-u", "/e2e/reader.py"]
+    volumes:
+      - ${E2E_DIR:?set E2E_DIR to this directory, absolute}:/e2e:ro
