@@ -52,10 +52,16 @@ class Running(Disclosures):
         self.wake = asyncio.Event()
 
     async def on_settings(self, delivered: Any) -> None:
-        """Each delivery of the settings: the source they name, and a check
-        at once."""
+        """Each delivery of the settings: the source they name -- kept while
+        it is the same one, so what it has read stays read -- and a check at
+        once."""
         config = config_from(delivered)
-        if config != self.config or self.settings is None:
+        was = self.config
+        moved = config.sample_data != was.sample_data or (
+            not config.sample_data
+            and (config.files_url, config.files_token) != (was.files_url, was.files_token)
+        )
+        if moved or self.settings is None:
             self.library.source = source(config.sample_data, config.files_url, config.files_token)
             self.library.months.clear()
         self.config, self.settings = config, delivered

@@ -16,7 +16,7 @@ under `agency_pool` (core's e2e-lake step 17 reads the same pool).
    the contract's fixtures key them (`FNMA:MA5123:202610`, factor month
    202610, record date 2026-10-31, paid 2026-11-25, published 2026-11-05)
    with the pool's WAC, WAM and WALA.
-4. Republished: the settings saved again wake the plugin's check, which
+4. Republished: a setting changed wakes the plugin's check, which
    reads the samples' October file in its corrected form -- 0.83102211 --
    recorded as the row's version 2; read by payment date the pool's October
    factor is the republication.
@@ -152,7 +152,7 @@ def run():
     must(seen >= 2, f"step 3, the reader's watermark: {year['watermark']}")
 
     # 4. Republished: the check woken reads the corrected October file.
-    runner("settings", "sample_data=true")
+    runner("settings", "sample_data=true", "files_url=https://files.invalid/gse-disclosures")
     again = until(120, lambda: (lambda r: r if months(r)[-1:] == [("202610", "0.83102211", 2)]
                                 else None)(read(asked)),
                   "step 4, October's republication was not read as version 2")
