@@ -10,7 +10,7 @@ from gse_disclosures.preview import render
 
 def test_the_pages_render_on_sample_data() -> None:
     connection = render("connection")
-    assert "Sample data" in connection and "Files" in connection
+    assert "Sample data" in connection and "Does not stream" in connection
     datasets = render("datasets")
     assert "gse-disclosures:fannie_mae" in datasets and "gse-disclosures:freddie_mac" in datasets
 

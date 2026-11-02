@@ -341,8 +341,16 @@ class Disclosures(data.Role):
             if security.subject not in named:
                 declined[security.subject] = "source_silent"
         await self.record(found, want.want_id)
-        if want.standing:
-            kept = [s for s in securities if s.subject in named]
+        kept = [s for s in securities if s.subject in named]
+        log.info(
+            "want %s: %d of %d subjects found, %d factors, declined %s",
+            want.want_id,
+            len(kept),
+            len(subjects),
+            len(found),
+            declined or "none",
+        )
+        if want.standing and kept:
             for security in kept:
                 self.held[security.subject] = security
             self.wants.stand(want, [s.subject for s in kept], kinds)

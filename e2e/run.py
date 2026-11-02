@@ -201,6 +201,7 @@ def main():
     except (Failed, subprocess.TimeoutExpired, KeyError, ValueError, IndexError, TypeError) as failed:
         with open(COMPONENTS, "a", encoding="utf-8") as kept:
             kept.write(compose("logs", "--no-color", check=False).stdout)
+            kept.write(compose("run", "--rm", "-T", "store", "lake", check=False).stdout)
         compose("--profile", "runner", "down", "-v", "--remove-orphans", check=False)
         print(f"e2e FAILED: {failed}; the runner's log is in {LOG}, the components' in {COMPONENTS}",
               file=sys.stderr)

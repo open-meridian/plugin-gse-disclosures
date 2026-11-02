@@ -85,7 +85,17 @@ class Reader(reporting.Role):
             "watermark": {p.partition: p.sequence for p in answer.watermark.partitions},
         }
 
+    async def record(self, query):
+        found = await self.resolve_instrument(instrument_id=query.get("id", [""])[0])
+        held = found.instrument
+        return {"found": found.found, "instrument_type": ops.InstrumentType.Name(held.instrument_type),
+                "template": f"{held.template_id} {held.template_version}",
+                "provisional": held.provisional,
+                "identifiers": [f"{i.scheme}:{i.value}:{i.source}" for i in held.identifiers]}
+
     async def answer(self, path, query):
+        if path == "/record":
+            return await self.record(query)
         if path == "/resolve":
             return await self.resolve(query)
         if path == "/factors":
