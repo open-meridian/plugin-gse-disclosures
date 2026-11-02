@@ -68,6 +68,9 @@ class Running(Disclosures):
         if config.payment_calendar != self.calendar.default:
             self.calendar = Days(self, config.payment_calendar)
         self.config, self.settings = config, delivered
+        # The payment calendar asked for at once, so the deployment holds it
+        # before a want's dates are rolled by it.
+        await self.calendar.open(self.today())
         self.wake.set()
 
     async def run(self) -> None:

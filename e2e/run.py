@@ -16,10 +16,12 @@ under `agency_pool` (core's e2e-lake step 17 reads the same pool).
    plugin records September's and October's factors from the samples, as
    the contract's fixtures key them (`FNMA:MA5123:202610`, factor month
    202610, record date 2026-10-31, paid 2026-11-25, published 2026-11-05)
-   with the pool's WAC, WAM and WALA.
+   with the pool's WAC, WAM and WALA, each payment date rolled by the
+   harness's US dollar calendar (a row recorded before the calendar answers
+   has none, and its next version has it).
 4. Republished: a setting changed wakes the plugin's check, which
    reads the samples' October file in its corrected form -- 0.83102211 --
-   recorded as the row's version 2; read by payment date the pool's October
+   recorded as the row's next version; read by payment date the pool's October
    factor is the republication.
 5. Caught up: a read after the sequence the reader last saw answers the
    republication alone.
@@ -140,9 +142,13 @@ def run():
            "personal_use=false", "note=Fannie Mae's disclosures, under the firm's PoolTalk terms.")
     runner("entitle", "--instance", "reader", DATASET, "note=The e2e's reader reads factors.")
     asked = f"/factors?subject={pool}&from=2025-11-01&to=2026-11-30"
-    year = until(120, lambda: (lambda r: r if len(r["factors"]) == 2 else None)(read(asked)),
-                 "step 3, the pool's two factors were not read")
-    must(months(year) == [("202609", "0.84017733", 1), ("202610", "0.83102210", 1)],
+    # Both months, each with its payment date: a row recorded before the
+    # payment calendar answered has none, and is its next version once it
+    # does -- never a guessed date.
+    year = until(180, lambda: (lambda r: r if len(r["factors"]) == 2
+                               and all(f["payment_date"] for f in r["factors"]) else None)(
+        read(asked)), "step 3, the pool's two factors were not read with their payment dates")
+    must([m[:2] for m in months(year)] == [("202609", "0.84017733"), ("202610", "0.83102210")],
          f"step 3, September's and October's factors as published: {year}")
     by_month = {f["month"]: f for f in year["factors"]}
     october = by_month["202610"]
@@ -155,20 +161,22 @@ def run():
     must(by_month["202609"]["payment_date"] == "2026-10-26",
          f"step 3, September's paid the next business day after Sunday the 25th: {year}")
     seen = year["watermark"].get(DATASET, 0)
+    first = october["version"]
     must(seen >= 2, f"step 3, the reader's watermark: {year['watermark']}")
 
     # 4. Republished: the check woken reads the corrected October file.
     runner("settings", "sample_data=true", f"payment_calendar={CALENDAR}",
            "files_url=https://files.invalid/gse-disclosures")
-    again = until(120, lambda: (lambda r: r if months(r)[-1:] == [("202610", "0.83102211", 2)]
+    again = until(120, lambda: (lambda r: r if months(r)[-1][:2] == ("202610", "0.83102211")
                                 else None)(read(asked)),
-                  "step 4, October's republication was not read as version 2")
-    must(months(again) == [("202609", "0.84017733", 1), ("202610", "0.83102211", 2)],
-         f"step 4, by payment date the republication: {again}")
+                  "step 4, October's republication was not read")
+    republished = {f["month"]: f for f in again["factors"]}["202610"]
+    must(republished["version"] == first + 1 and republished["payment_date"] == "2026-11-25",
+         f"step 4, the republication October's next version: {again}")
 
     # 5. Caught up after the sequence last seen.
     caught = read(f"/factors?subject={pool}&after={seen}")
-    must([(f["month"], f["version"]) for f in caught["factors"]] == [("202610", 2)],
+    must([(f["month"], f["version"]) for f in caught["factors"]] == [("202610", first + 1)],
          f"step 5, the republication caught up after {seen}: {caught}")
 
     # 6. Terms offered, nothing refused.
@@ -196,7 +204,7 @@ def run():
           f"files location; on sample data the harness platform's pool MA5123 ({pool}) resolved, "
           f"its factors recorded when the reader asked -- September's 0.84017733 and October's "
           f"0.83102210 as the fixtures key them, paid 2026-10-26 and 2026-11-25 -- October "
-          f"republished as version 2, read by payment date and caught up after the watermark; its "
+          f"republished as its next version, read by payment date and caught up after the watermark; its "
           f"terms offered to its record; read_connection and read_datasets answering")
 
 
