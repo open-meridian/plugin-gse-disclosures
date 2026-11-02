@@ -1,0 +1,24 @@
+{
+ "about": "Disclosure files in the GSEs' aligned layouts (Freddie Mac's Disclosure Guide, Security Level File; the REMIC factor layout of Freddie Mac's published sample), synthetic values for the pools and classes the tests and e2e name; not the agencies' data.",
+ "files": {
+  "FNM_MF_202610": {
+   "file": "FNM_MF_202610.txt"
+  },
+  "FNM_MF_202611": {
+   "file": "FNM_MF_202611.txt",
+   "republished": "FNM_MF_202611-republished.txt"
+  },
+  "fd261006": {
+   "file": "fd261006.txt"
+  },
+  "fd261105": {
+   "file": "fd261105.zip"
+  },
+  "wj261005": {
+   "file": "wj261005.txt"
+  },
+  "wj261105": {
+   "file": "wj261105.txt"
+  }
+ }
+}

@@ -1,0 +1,3 @@
+Trust Identifier|Class Identifier|CUSIP|Maturity Date|Class Issuance Investor Security UPB|Security Factor|Class Current Investor Security UPB|Interest Rate|Interest Factor|Interest Paid|Principal Paydown Factor|Principal Paydown Amount|Accretion Factor|Accretion Amount|Scheduled Distribution Date|Yield maintenance Premium / Penalty amount |Notes
+5XXX05|A|1236AN7C5|032044|88997000.00|0.09351073|0.00|3.00000|0.91848680|204356.42|0.00834654|742817.39|N/AP|N/AP|112026||
+5XXX05|EF|1236ASJL1|062046|100337174.00|0.35320260|0.00|5.43875|1.00000000|78492.94|0.00666783|669031.68|N/AP|N/AP|112026||

@@ -1,0 +1,11 @@
+plugin-gse-disclosures
+Copyright 2026 Societal Lab Inc.
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+The data this plugin reads are Fannie Mae's and Freddie Mac's mortgage
+securities disclosures, which each agency publishes to its registered users
+under its own terms. tests/responses/freddie-remic-factor-sample.txt is
+Freddie Mac's published sample of its REMIC factor file layout (randomised
+data). This project is not affiliated with or endorsed by Fannie Mae or
+Freddie Mac.
