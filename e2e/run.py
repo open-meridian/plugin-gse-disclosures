@@ -126,6 +126,7 @@ def run():
     runner("page", "--level", "admin", "/", "--until", "Sample data", "--seconds", "90")
 
     # 3. The pool resolved, its factors asked for and recorded.
+    runner("grant", "--instance", "reader", "--level", "read")
     pool = until(60, lambda: (lambda r: r["instrument_id"] if r["found"] else None)(
         read("/resolve?scheme=agency_pool&value=MA5123&source=FNMA")),
         "step 3, the reader did not resolve the pool MA5123")
@@ -133,7 +134,6 @@ def run():
     runner("licence", DATASET, "kept=true", "retention_days=0", "derived_use=true", "display=true",
            "personal_use=false", "note=Fannie Mae's disclosures, under the firm's PoolTalk terms.")
     runner("entitle", "--instance", "reader", DATASET, "note=The e2e's reader reads factors.")
-    runner("grant", "--instance", "reader", "--level", "read")
     asked = f"/factors?subject={pool}&from=2025-11-01&to=2026-11-30"
     year = until(120, lambda: (lambda r: r if len(r["factors"]) == 2 else None)(read(asked)),
                  "step 3, the pool's two factors were not read")
