@@ -48,7 +48,7 @@ tool for agents (`read_connection`, `read_datasets`).
 The tests run on disclosure files in the GSEs' published layouts, committed
 under `src/gse_disclosures/samples/` and `tests/responses/` (Freddie Mac's
 published REMIC factor sample); nothing in CI reaches an agency. Version
-0.1.0 is built on `open-meridian==0.35.3`, contract v29.
+0.2.0 is built on `open-meridian==0.36.0`, contract 30.
 
 ## Licence
 
