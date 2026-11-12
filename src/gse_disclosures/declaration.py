@@ -16,9 +16,11 @@ and `coupon_rate` it fills, ruling 995):
 - `history` 396 days: a want is answered with thirteen months of factors;
 - its day New York's, ending at midnight; no venue, no calendar.
 
-No default licence (rulings 1030 to 1032): the GSEs' terms are the
-deployment's, accepted with its PoolTalk and secured-site registrations;
-docs/terms.md summarises them in plain words.
+No licence (rulings 1030 to 1032): the GSEs' terms are the deployment's,
+accepted with its PoolTalk and secured-site registrations; each dataset
+describes its agency's in words (`terms_and_pricing`, contract 30), as
+docs/terms.md does. A gap is recovered by `backfill` (`gap_recovery`): the
+files hold thirteen months, so the lake asks again through its want.
 
 **Storage:** the files as read (files.py), archivable, ten years by default.
 
@@ -47,6 +49,21 @@ HISTORY_DAYS = 396
 WINDOW_DAYS = 3650
 MOST_WINDOW_DAYS = 36500
 
+#: Each agency's terms in plain words (contract 30, ruling 1032).
+TERMS = {
+    "Fannie Mae": (
+        "Fannie Mae's own disclosures: its pools' and REMIC classes' monthly factor files, "
+        "made available to users who register and accept its terms, through PoolTalk and its "
+        "SFTP site. Fannie Mae has said that commercial redistribution of its disclosure data "
+        "carries a fee. Fannie Mae's current terms on its site govern."
+    ),
+    "Freddie Mac": (
+        "Freddie Mac's own disclosures: its pools' and REMIC classes' monthly factor files, "
+        "made available to users who register and accept its terms, through its secured data "
+        "site. Freddie Mac's current terms on its site govern."
+    ),
+}
+
 DATA_TYPES = [
     "meridian.v1.Factor",
     "meridian.v1.Factor.wac",
@@ -65,6 +82,8 @@ def declared(agency: Agency) -> meridian.DatasetDeclaration:
         cadence=CADENCE,
         history=HISTORY_DAYS,
         day_time_zone="America/New_York",
+        terms_and_pricing=TERMS[agency.name],
+        gap_recovery="backfill",
     )
 
 

@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.2.0
+
+On open-meridian 0.36.0, contract 30, on core aae501d's harness (chart
+0.1.538); `meridian` 0.1.60 in the check. What the plugin records is
+unchanged.
+
+- **Each agency's terms in words** (ruling 1032): `fannie_mae` and
+  `freddie_mac` each describe the agency's disclosures and how they are
+  reached (PoolTalk and SFTP; the secured data site), Fannie Mae's fee for
+  commercial redistribution among them, shown on Data sources and in the
+  Datasets page's row details. The plugin still declares no licence.
+- **A gap recovered by backfill** (`gap_recovery`): the files hold thirteen
+  months, read again on a want. No `sessions_calendar_id`: factors are
+  published monthly, in no session.
+- **Row keys checked against the lake's rule 5** (ruled 2026-11-12): a
+  factor is keyed by the agency, the pool or the REMIC trust and class, and
+  its month (`FNMA:<trust>:<class>:<YYYYMM>`), its valid time the month's; a
+  republication restates the same key over the same month and the same
+  record. The key names the pool or class, not its record, so one resolved
+  again to another record would restate under another first subject:
+  listed for step 3d, unchanged.
+- `meridian plugin migrate --to 0.36.0` moved the pins (the base by
+  digest, `meridian` 0.1.60); the tests' pin and absent-licence checks read
+  0.36.0 and the words.
+- Core's runtime and harness images at `aae501d`, by digest.
+
 ## 0.1.0
 
 The first version (ruling 686, the plan's Q13 and G'), on open-meridian

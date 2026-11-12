@@ -15,7 +15,9 @@ def test_a_dataset_per_gse() -> None:
     assert [d.vendor for d in CATALOGUE] == ["Fannie Mae", "Freddie Mac"]
     for declared in CATALOGUE:
         assert declared.data_types[0] == "meridian.v1.Factor"
-        assert declared.licence_default is None
+        # Contract 30 (ruling 1032): each agency's terms in words, never a licence.
+        assert declared.vendor in declared.terms_and_pricing
+        assert declared.gap_recovery == "backfill" and not declared.sessions_calendar_id
         assert declared.cadence == 86_400 and declared.history == 396
         assert not declared.aggregator and not declared.venue_id and not declared.calendar_id
 
@@ -23,5 +25,5 @@ def test_a_dataset_per_gse() -> None:
 def test_its_roles_and_declaration() -> None:
     project = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
     assert project["tool"]["meridian"]["roles"] == ["data", "reference"]
-    assert project["project"]["dependencies"] == ["open-meridian==0.35.3"]
+    assert project["project"]["dependencies"] == ["open-meridian==0.36.0"]
     assert DECLARATION.documentation == "docs"
