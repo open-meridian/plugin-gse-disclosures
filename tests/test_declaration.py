@@ -25,5 +25,5 @@ def test_a_dataset_per_gse() -> None:
 def test_its_roles_and_declaration() -> None:
     project = tomllib.loads((Path(__file__).parent.parent / "pyproject.toml").read_text())
     assert project["tool"]["meridian"]["roles"] == ["data", "reference"]
-    assert project["project"]["dependencies"] == ["open-meridian==0.36.0"]
+    assert project["project"]["dependencies"] == ["open-meridian==0.37.0"]
     assert DECLARATION.documentation == "docs"
